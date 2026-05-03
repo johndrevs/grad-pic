@@ -103,6 +103,10 @@ function normalizePhotoIds(input) {
   return Array.isArray(input) ? input.filter((value) => typeof value === "string" && value) : [];
 }
 
+function isValidMimeType(value) {
+  return typeof value === "string" && /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(value);
+}
+
 function getLanAddresses() {
   const interfaces = os.networkInterfaces();
   const addresses = [];
@@ -152,12 +156,17 @@ app.post("/api/photos", upload.array("photos", 10), async (req, res) => {
 
     if (useBlobStorage) {
       await Promise.all(
-        files.map((file) =>
-          put(`${blobPrefix}${buildPhotoName(file.originalname)}`, file.buffer, {
-            access: "public",
-            contentType: file.mimetype
-          })
-        )
+        files.map((file) => {
+          const options = {
+            access: "public"
+          };
+
+          if (isValidMimeType(file.mimetype)) {
+            options.contentType = file.mimetype;
+          }
+
+          return put(`${blobPrefix}${buildPhotoName(file.originalname)}`, file.buffer, options);
+        })
       );
     }
 
@@ -165,8 +174,8 @@ app.post("/api/photos", upload.array("photos", 10), async (req, res) => {
       uploaded: files.length,
       photos: await listPhotos()
     });
-  } catch (_error) {
-    res.status(500).json({ error: "Upload failed." });
+  } catch (error) {
+    res.status(500).json({ error: error?.message || "Upload failed." });
   }
 });
 
