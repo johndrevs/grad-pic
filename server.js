@@ -107,6 +107,10 @@ function isValidMimeType(value) {
   return typeof value === "string" && /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(value);
 }
 
+function errorMessage(error, fallback) {
+  return error?.cause?.message || error?.message || fallback;
+}
+
 function getLanAddresses() {
   const interfaces = os.networkInterfaces();
   const addresses = [];
@@ -125,8 +129,8 @@ function getLanAddresses() {
 app.get("/api/photos", async (_req, res) => {
   try {
     res.json({ photos: await listPhotos() });
-  } catch (_error) {
-    res.status(500).json({ error: "Could not load photos." });
+  } catch (error) {
+    res.status(500).json({ error: errorMessage(error, "Could not load photos.") });
   }
 });
 
@@ -175,7 +179,7 @@ app.post("/api/photos", upload.array("photos", 10), async (req, res) => {
       photos: await listPhotos()
     });
   } catch (error) {
-    res.status(500).json({ error: error?.message || "Upload failed." });
+    res.status(500).json({ error: errorMessage(error, "Upload failed.") });
   }
 });
 
@@ -197,8 +201,8 @@ app.delete("/api/photos", async (req, res) => {
         missing,
         photos: await listPhotos()
       });
-    } catch (_error) {
-      return res.status(500).json({ error: "Delete failed." });
+    } catch (error) {
+      return res.status(500).json({ error: errorMessage(error, "Delete failed.") });
     }
   }
 
