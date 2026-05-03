@@ -9,6 +9,7 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
+    "@vercel/blob": "^1.1.1",
     "express": "^4.21.2",
     "multer": "^2.0.2",
     "qrcode": "^1.5.4"

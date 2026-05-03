@@ -21,8 +21,9 @@ If you later want a true Roku channel, that is a separate BrightScript app build
 - `server.js`: Node server for file uploads and photo listing
 - `public/index.html`: guest upload page
 - `public/display.html`: TV slideshow page
+- `public/manage.html`: bulk photo review and deletion page
 - `public/styles.css`: shared styling
-- `data/uploads/`: uploaded photos stored locally
+- `data/uploads/`: local fallback storage when Blob is not configured
 
 ## Setup
 
@@ -32,20 +33,32 @@ If you later want a true Roku channel, that is a separate BrightScript app build
 npm install
 ```
 
-2. Start the app:
+2. Optional: configure Vercel Blob for durable uploads.
+
+Create a public Blob store in Vercel and make sure `BLOB_READ_WRITE_TOKEN` is available to the app.
+
+For local development, add it to a `.env` file or your shell environment:
+
+```bash
+export BLOB_READ_WRITE_TOKEN=your_token_here
+```
+
+If you do not set `BLOB_READ_WRITE_TOKEN`, the app falls back to local disk storage in `data/uploads/`.
+
+3. Start the app:
 
 ```bash
 npm start
 ```
 
-3. Watch the console output. It will show local network URLs like:
+4. Watch the console output. It will show local network URLs like:
 
 ```text
 http://192.168.1.25:3000
 ```
 
-4. Share that URL with guests on the same Wi-Fi.
-5. Open `http://YOUR-IP:3000/display.html` on the laptop connected to the TV or mirrored to Roku.
+5. Share that URL with guests on the same Wi-Fi.
+6. Open `http://YOUR-IP:3000/display.html` on the laptop connected to the TV or mirrored to Roku.
 
 ## Party flow
 
@@ -57,8 +70,9 @@ http://192.168.1.25:3000
 
 ## Notes
 
-- Uploads are local to the machine running the app.
-- On Vercel, uploads go to temporary storage and are not durable across cold starts or redeploys.
+- With `BLOB_READ_WRITE_TOKEN` configured, uploads are stored durably in Vercel Blob.
+- Without Blob configured, uploads stay local to the machine running the app.
 - The app accepts up to 10 images per upload request and 25 MB per image.
 - The slideshow polls every few seconds for new photos.
-- `data/uploads/` is ignored by git so party photos stay local.
+- The moderation page is available at `/manage.html`.
+- `data/uploads/` is ignored by git so local fallback photos stay out of git.

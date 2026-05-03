@@ -4,26 +4,25 @@ const os = require("os");
 const path = require("path");
 const multer = require("multer");
 const QRCode = require("qrcode");
+const { del, list, put } = require("@vercel/blob");
 
 const app = express();
 const port = process.env.PORT || 3000;
+const useBlobStorage = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 const dataDir = process.env.VERCEL ? path.join("/tmp", "gradpic") : path.join(__dirname, "data");
 const uploadDir = path.join(dataDir, "uploads");
+const blobPrefix = "photos/";
 
-fs.mkdirSync(uploadDir, { recursive: true });
+if (!useBlobStorage) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const stamp = Date.now();
-    const safeBase = path
-      .basename(file.originalname, path.extname(file.originalname))
-      .replace(/[^a-zA-Z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "photo";
-    cb(null, `${stamp}-${safeBase}${path.extname(file.originalname).toLowerCase()}`);
-  }
-});
+const storage = useBlobStorage
+  ? multer.memoryStorage()
+  : multer.diskStorage({
+      destination: (_req, _file, cb) => cb(null, uploadDir),
+      filename: (_req, file, cb) => cb(null, buildPhotoName(file.originalname))
+    });
 
 const upload = multer({
   storage,
@@ -37,24 +36,71 @@ const upload = multer({
 });
 
 app.use(express.json());
-app.use("/uploads", express.static(uploadDir));
+if (!useBlobStorage) {
+  app.use("/uploads", express.static(uploadDir));
+}
 app.use(express.static(path.join(__dirname, "public")));
 
-function listPhotos() {
+function buildPhotoName(originalName) {
+  const stamp = Date.now();
+  const safeBase = path
+    .basename(originalName, path.extname(originalName))
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "photo";
+
+  return `${stamp}-${safeBase}${path.extname(originalName).toLowerCase()}`;
+}
+
+function mapLocalPhoto(entry) {
+  const fullPath = path.join(uploadDir, entry.name);
+  const stats = fs.statSync(fullPath);
+
+  return {
+    id: entry.name,
+    name: entry.name,
+    url: `/uploads/${encodeURIComponent(entry.name)}`,
+    addedAt: stats.birthtimeMs || stats.mtimeMs
+  };
+}
+
+function mapBlobPhoto(blob) {
+  return {
+    id: blob.pathname,
+    name: path.basename(blob.pathname),
+    url: blob.url,
+    addedAt: new Date(blob.uploadedAt).getTime()
+  };
+}
+
+async function listPhotos() {
+  if (useBlobStorage) {
+    const response = await list({
+      prefix: blobPrefix,
+      limit: 1000
+    });
+
+    return response.blobs.map(mapBlobPhoto).sort((a, b) => a.addedAt - b.addedAt);
+  }
+
   return fs
     .readdirSync(uploadDir, { withFileTypes: true })
     .filter((entry) => entry.isFile())
-    .map((entry) => {
-      const fullPath = path.join(uploadDir, entry.name);
-      const stats = fs.statSync(fullPath);
-
-      return {
-        name: entry.name,
-        url: `/uploads/${encodeURIComponent(entry.name)}`,
-        addedAt: stats.birthtimeMs || stats.mtimeMs
-      };
-    })
+    .map(mapLocalPhoto)
     .sort((a, b) => a.addedAt - b.addedAt);
+}
+
+function resolveUploadPath(name) {
+  const safeName = path.basename(String(name || ""));
+  if (!safeName || safeName !== name) {
+    return null;
+  }
+
+  return path.join(uploadDir, safeName);
+}
+
+function normalizePhotoIds(input) {
+  return Array.isArray(input) ? input.filter((value) => typeof value === "string" && value) : [];
 }
 
 function getLanAddresses() {
@@ -72,8 +118,12 @@ function getLanAddresses() {
   return [...new Set(addresses)];
 }
 
-app.get("/api/photos", (_req, res) => {
-  res.json({ photos: listPhotos() });
+app.get("/api/photos", async (_req, res) => {
+  try {
+    res.json({ photos: await listPhotos() });
+  } catch (_error) {
+    res.status(500).json({ error: "Could not load photos." });
+  }
 });
 
 app.get("/api/upload-qr", async (req, res) => {
@@ -96,10 +146,69 @@ app.get("/api/upload-qr", async (req, res) => {
   }
 });
 
-app.post("/api/photos", upload.array("photos", 10), (req, res) => {
-  res.status(201).json({
-    uploaded: (req.files || []).length,
-    photos: listPhotos()
+app.post("/api/photos", upload.array("photos", 10), async (req, res) => {
+  try {
+    const files = req.files || [];
+
+    if (useBlobStorage) {
+      await Promise.all(
+        files.map((file) =>
+          put(`${blobPrefix}${buildPhotoName(file.originalname)}`, file.buffer, {
+            access: "public",
+            contentType: file.mimetype
+          })
+        )
+      );
+    }
+
+    res.status(201).json({
+      uploaded: files.length,
+      photos: await listPhotos()
+    });
+  } catch (_error) {
+    res.status(500).json({ error: "Upload failed." });
+  }
+});
+
+app.delete("/api/photos", async (req, res) => {
+  const ids = normalizePhotoIds(req.body?.ids || req.body?.names);
+  const deleted = [];
+  const missing = [];
+
+  if (!ids.length) {
+    return res.status(400).json({ error: "Choose at least one photo to delete." });
+  }
+
+  if (useBlobStorage) {
+    try {
+      await del(ids);
+
+      return res.json({
+        deleted: ids,
+        missing,
+        photos: await listPhotos()
+      });
+    } catch (_error) {
+      return res.status(500).json({ error: "Delete failed." });
+    }
+  }
+
+  for (const id of ids) {
+    const filePath = resolveUploadPath(id);
+
+    if (!filePath || !fs.existsSync(filePath)) {
+      missing.push(id);
+      continue;
+    }
+
+    fs.unlinkSync(filePath);
+    deleted.push(id);
+  }
+
+  return res.json({
+    deleted,
+    missing,
+    photos: await listPhotos()
   });
 });
 
