@@ -22,8 +22,15 @@ form.addEventListener("submit", async (event) => {
       method: "POST",
       body: formData
     });
+    const text = await response.text();
+    let payload = {};
 
-    const payload = await response.json();
+    try {
+      payload = text ? JSON.parse(text) : {};
+    } catch (_error) {
+      payload = { error: text || `Request failed with status ${response.status}.` };
+    }
+
     if (!response.ok) {
       throw new Error(payload.error || "Upload failed.");
     }
