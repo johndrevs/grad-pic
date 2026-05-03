@@ -5,6 +5,7 @@ const path = require("path");
 const multer = require("multer");
 const QRCode = require("qrcode");
 const { del, list, put } = require("@vercel/blob");
+const { handleUpload } = require("@vercel/blob/client");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -134,6 +135,10 @@ app.get("/api/photos", async (_req, res) => {
   }
 });
 
+app.get("/api/upload-config", (_req, res) => {
+  res.json({ useBlobStorage });
+});
+
 app.get("/api/upload-qr", async (req, res) => {
   const origin = `${req.protocol}://${req.get("host")}`;
   const uploadUrl = `${origin}/`;
@@ -151,6 +156,35 @@ app.get("/api/upload-qr", async (req, res) => {
     res.json({ uploadUrl, dataUrl });
   } catch (_error) {
     res.status(500).json({ error: "Could not generate QR code." });
+  }
+});
+
+app.post("/api/blob/upload", async (req, res) => {
+  if (!useBlobStorage) {
+    return res.status(400).json({ error: "Blob uploads are not configured for this environment." });
+  }
+
+  try {
+    const jsonResponse = await handleUpload({
+      body: req.body,
+      request: req,
+      onBeforeGenerateToken: async (_pathname) => ({
+        allowedContentTypes: [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/gif",
+          "image/heic",
+          "image/heif"
+        ],
+        addRandomSuffix: false
+      }),
+      onUploadCompleted: async () => {}
+    });
+
+    return res.status(200).json(jsonResponse);
+  } catch (error) {
+    return res.status(400).json({ error: errorMessage(error, "Could not prepare Blob upload.") });
   }
 });
 
