@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Graduation Party Album</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="page-shell">
+    <main class="panel">
+      <p class="eyebrow">Graduation Party</p>
+      <h1>Add photos to the live album</h1>
+      <p class="lede">
+        Connect to the party Wi-Fi, choose a few photos, and they will appear in the slideshow.
+      </p>
+
+      <form id="upload-form" class="stack">
+        <label class="upload-drop" for="photos">
+          <span>Select images from your phone</span>
+          <span class="muted">Up to 10 at a time, JPG/PNG/HEIC if your browser supports it.</span>
+        </label>
+        <input id="photos" name="photos" type="file" accept="image/*" multiple required />
+        <button type="submit">Upload Photos</button>
+      </form>
+
+      <section class="stack">
+        <div id="status" class="status" aria-live="polite">Waiting for uploads.</div>
+        <a class="text-link" href="/display.html" target="_blank" rel="noreferrer">
+          Open the TV slideshow page
+        </a>
+        <a class="text-link" href="/settings.html">
+          Configure slideshow settings
+        </a>
+      </section>
+    </main>
+
+    <script src="/upload.js"></script>
+  </body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Graduation Slideshow</title>
+    <link rel="stylesheet" href="/styles.css?v=20260503b" />
+  </head>
+  <body class="display-body">
+    <main id="display-root" class="display-root">
+      <div id="empty-state" class="empty-state">
+        <p class="eyebrow">Graduation Party</p>
+        <h1>Waiting for the first photos</h1>
+        <p>Leave this screen open. New uploads will appear automatically.</p>
+        <p id="settings-summary" class="settings-summary"></p>
+        <section class="qr-panel">
+          <img id="upload-qr" class="qr-image hidden" alt="QR code for the photo upload page" />
+          <p class="qr-copy">Scan to add photos</p>
+          <p id="upload-url" class="qr-url"></p>
+        </section>
+      </div>
+
+      <figure id="slide" class="slide hidden">
+        <img id="slide-image" alt="Party upload" />
+        <figcaption id="slide-caption"></figcaption>
+        <aside class="slide-qr">
+          <img id="slide-upload-qr" class="qr-image hidden" alt="QR code for the photo upload page" />
+          <p class="qr-copy">Scan to add photos</p>
+          <p id="slide-upload-url" class="slide-qr-url"></p>
+        </aside>
+      </figure>
+    </main>
+
+    <script src="/display.js?v=20260503"></script>
+  </body>
+</html>
