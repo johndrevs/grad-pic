@@ -1,8 +1,7 @@
-import { upload } from "https://esm.sh/@vercel/blob/client";
-
 const form = document.getElementById("upload-form");
 const input = document.getElementById("photos");
 const statusEl = document.getElementById("status");
+let blobUploadModulePromise;
 
 function buildPhotoName(originalName) {
   const stamp = Date.now();
@@ -46,6 +45,9 @@ async function uploadViaServer(files) {
 }
 
 async function uploadViaBlob(files) {
+  blobUploadModulePromise ||= import("https://esm.sh/@vercel/blob/client");
+  const { upload } = await blobUploadModulePromise;
+
   for (const [index, file] of files.entries()) {
     statusEl.textContent = `Uploading ${index + 1} of ${files.length} photo(s)...`;
 
