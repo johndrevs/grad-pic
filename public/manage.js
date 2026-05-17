@@ -56,20 +56,31 @@ function renderPhotos() {
       updateSelectionSummary();
     });
 
-    const image = document.createElement("img");
-    image.src = `${photo.url}?t=${photo.addedAt}`;
-    image.alt = photo.name;
-    image.loading = "lazy";
-    image.className = "manage-image";
+    const preview =
+      photo.mediaType === "video" ? document.createElement("video") : document.createElement("img");
+
+    preview.src = `${photo.url}${photo.mediaType === "image" ? `?t=${photo.addedAt}` : ""}`;
+    preview.className = "manage-image";
+
+    if (photo.mediaType === "video") {
+      preview.muted = true;
+      preview.playsInline = true;
+      preview.preload = "metadata";
+      preview.setAttribute("aria-label", photo.name);
+    } else {
+      preview.alt = photo.name;
+      preview.loading = "lazy";
+    }
 
     const meta = document.createElement("div");
     meta.className = "manage-meta";
     meta.innerHTML = `
       <strong>${photo.name}</strong>
+      <span>${photo.mediaType === "video" ? "Video" : "Photo"}</span>
       <span>${formatTimestamp(photo.addedAt)}</span>
     `;
 
-    card.append(checkbox, image, meta);
+    card.append(checkbox, preview, meta);
     gridEl.append(card);
   }
 

@@ -54,7 +54,7 @@ async function uploadViaBlob(files) {
     await upload(buildPhotoName(file.name), file, {
       access: "public",
       handleUploadUrl: "/api/blob/upload",
-      multipart: true
+      multipart: file.size > 5 * 1024 * 1024
     });
   }
 

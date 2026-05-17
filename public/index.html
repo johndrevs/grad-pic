@@ -11,16 +11,16 @@
       <p class="eyebrow">Graduation Party</p>
       <h1>Add photos to the live album</h1>
       <p class="lede">
-        Connect to the party Wi-Fi, choose a few photos, and they will appear in the slideshow.
+        Connect to the party Wi-Fi, choose a few photos or short videos, and they will appear in the slideshow.
       </p>
 
       <form id="upload-form" class="stack">
         <label class="upload-drop" for="photos">
-          <span>Select images from your phone</span>
-          <span class="muted">Up to 10 at a time, JPG/PNG/HEIC if your browser supports it.</span>
+          <span>Select photos or videos from your phone</span>
+          <span class="muted">Up to 10 at a time, common image formats plus MP4/MOV/WebM video.</span>
         </label>
-        <input id="photos" name="photos" type="file" accept="image/*" multiple required />
-        <button type="submit">Upload Photos</button>
+        <input id="photos" name="photos" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,video/x-m4v,video/avi,video/x-msvideo" multiple required />
+        <button type="submit">Upload Media</button>
       </form>
 
       <section class="stack">

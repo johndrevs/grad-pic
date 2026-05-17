@@ -1,6 +1,7 @@
 const emptyState = document.getElementById("empty-state");
 const slide = document.getElementById("slide");
 const image = document.getElementById("slide-image");
+const video = document.getElementById("slide-video");
 const caption = document.getElementById("slide-caption");
 const settingsSummary = document.getElementById("settings-summary");
 const emptyQrImage = document.getElementById("upload-qr");
@@ -84,6 +85,11 @@ function startSlideTimer() {
       return;
     }
 
+     const currentItem = photos[index % photos.length];
+     if (currentItem?.mediaType === "video") {
+       return;
+     }
+
     const atLastPhoto = index >= photos.length - 1;
     if (atLastPhoto && !settings.loop) {
       return;
@@ -102,6 +108,7 @@ function reloadSettings() {
 
 function showCurrentPhoto() {
   if (!photos.length) {
+    video.pause();
     emptyState.classList.remove("hidden");
     slide.classList.add("hidden");
     return;
@@ -111,11 +118,42 @@ function showCurrentPhoto() {
   slide.classList.remove("hidden");
 
   const photo = photos[index % photos.length];
-  image.src = `${photo.url}?t=${photo.addedAt}`;
+  if (photo.mediaType === "video") {
+    image.classList.add("hidden");
+    video.classList.remove("hidden");
+    video.src = photo.url;
+    video.currentTime = 0;
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(() => {});
+    }
+  } else {
+    video.pause();
+    video.classList.add("hidden");
+    image.classList.remove("hidden");
+    image.src = `${photo.url}?t=${photo.addedAt}`;
+  }
+
   const position = index % photos.length + 1;
   const suffix = !settings.loop && position === photos.length ? " - End of album" : "";
-  caption.textContent = `${position} / ${photos.length}${suffix}`;
+  const label = photo.mediaType === "video" ? "Video" : "Photo";
+  caption.textContent = `${position} / ${photos.length} - ${label}${suffix}`;
 }
+
+video.addEventListener("ended", () => {
+  const currentItem = photos[index % photos.length];
+  if (!currentItem || currentItem.mediaType !== "video") {
+    return;
+  }
+
+  const atLastPhoto = index >= photos.length - 1;
+  if (atLastPhoto && !settings.loop) {
+    return;
+  }
+
+  index = settings.loop ? (index + 1) % photos.length : Math.min(index + 1, photos.length - 1);
+  showCurrentPhoto();
+});
 
 async function refreshPhotos() {
   try {

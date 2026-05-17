@@ -13,6 +13,23 @@ const useBlobStorage = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 const dataDir = process.env.VERCEL ? path.join("/tmp", "gradpic") : path.join(__dirname, "data");
 const uploadDir = path.join(dataDir, "uploads");
 const blobPrefix = "photos/";
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"]);
+const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".m4v", ".avi"]);
+const ALLOWED_BLOB_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-m4v",
+  "video/avi",
+  "video/msvideo",
+  "video/x-msvideo"
+];
 
 if (!useBlobStorage) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -29,10 +46,10 @@ const upload = multer({
   storage,
   limits: {
     files: 10,
-    fileSize: 25 * 1024 * 1024
+    fileSize: 150 * 1024 * 1024
   },
   fileFilter: (_req, file, cb) => {
-    cb(null, file.mimetype.startsWith("image/"));
+    cb(null, file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/"));
   }
 });
 
@@ -53,6 +70,29 @@ function buildPhotoName(originalName) {
   return `${stamp}-${safeBase}${path.extname(originalName).toLowerCase()}`;
 }
 
+function mediaTypeFor(name, mimeType) {
+  if (typeof mimeType === "string") {
+    if (mimeType.startsWith("image/")) {
+      return "image";
+    }
+
+    if (mimeType.startsWith("video/")) {
+      return "video";
+    }
+  }
+
+  const ext = path.extname(name).toLowerCase();
+  if (IMAGE_EXTENSIONS.has(ext)) {
+    return "image";
+  }
+
+  if (VIDEO_EXTENSIONS.has(ext)) {
+    return "video";
+  }
+
+  return "image";
+}
+
 function mapLocalPhoto(entry) {
   const fullPath = path.join(uploadDir, entry.name);
   const stats = fs.statSync(fullPath);
@@ -61,7 +101,8 @@ function mapLocalPhoto(entry) {
     id: entry.name,
     name: entry.name,
     url: `/uploads/${encodeURIComponent(entry.name)}`,
-    addedAt: stats.birthtimeMs || stats.mtimeMs
+    addedAt: stats.birthtimeMs || stats.mtimeMs,
+    mediaType: mediaTypeFor(entry.name)
   };
 }
 
@@ -70,7 +111,8 @@ function mapBlobPhoto(blob) {
     id: blob.pathname,
     name: path.basename(blob.pathname),
     url: blob.url,
-    addedAt: new Date(blob.uploadedAt).getTime()
+    addedAt: new Date(blob.uploadedAt).getTime(),
+    mediaType: mediaTypeFor(blob.pathname, blob.contentType)
   };
 }
 
@@ -169,14 +211,7 @@ app.post("/api/blob/upload", async (req, res) => {
       body: req.body,
       request: req,
       onBeforeGenerateToken: async (_pathname) => ({
-        allowedContentTypes: [
-          "image/jpeg",
-          "image/png",
-          "image/webp",
-          "image/gif",
-          "image/heic",
-          "image/heif"
-        ],
+        allowedContentTypes: ALLOWED_BLOB_TYPES,
         addRandomSuffix: false
       }),
       onUploadCompleted: async () => {}
