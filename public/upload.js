@@ -1,10 +1,11 @@
 const form = document.getElementById("upload-form");
 const input = document.getElementById("photos");
 const statusEl = document.getElementById("status");
-let blobUploadModulePromise;
+let supabaseModulePromise;
 
 function buildPhotoName(originalName) {
   const stamp = Date.now();
+  const nonce = Math.random().toString(36).slice(2, 8);
   const dotIndex = originalName.lastIndexOf(".");
   const ext = dotIndex >= 0 ? originalName.slice(dotIndex).toLowerCase() : "";
   const base = (dotIndex >= 0 ? originalName.slice(0, dotIndex) : originalName)
@@ -12,7 +13,7 @@ function buildPhotoName(originalName) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 60) || "photo";
 
-  return `photos/${stamp}-${base}${ext}`;
+  return `photos/${stamp}-${nonce}-${base}${ext}`;
 }
 
 async function readJsonOrText(response) {
@@ -44,18 +45,45 @@ async function uploadViaServer(files) {
   return payload;
 }
 
-async function uploadViaBlob(files) {
-  blobUploadModulePromise ||= import("https://esm.sh/@vercel/blob/client");
-  const { upload } = await blobUploadModulePromise;
+async function uploadViaSupabase(files) {
+  supabaseModulePromise ||= import("https://esm.sh/@supabase/supabase-js@2");
+  const { createClient } = await supabaseModulePromise;
+  const config = await getUploadConfig();
+  const supabase = createClient(config.supabaseUrl, config.supabaseClientKey);
 
   for (const [index, file] of files.entries()) {
     statusEl.textContent = `Uploading ${index + 1} of ${files.length} photo(s)...`;
 
-    await upload(buildPhotoName(file.name), file, {
-      access: "public",
-      handleUploadUrl: "/api/blob/upload",
-      multipart: file.size > 5 * 1024 * 1024
+    const path = buildPhotoName(file.name);
+    const signedUrlResponse = await fetch("/api/supabase/upload-url", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        path,
+        contentType: file.type
+      })
     });
+    const signedUrlPayload = await readJsonOrText(signedUrlResponse);
+
+    if (!signedUrlResponse.ok) {
+      throw new Error(signedUrlPayload.error || "Could not prepare upload.");
+    }
+
+    const { error } = await supabase.storage.from(config.supabaseBucket).uploadToSignedUrl(
+      signedUrlPayload.path,
+      signedUrlPayload.token,
+      file,
+      {
+        contentType: file.type || undefined,
+        upsert: false
+      }
+    );
+
+    if (error) {
+      throw new Error(error.message || "Upload failed.");
+    }
   }
 
   const response = await fetch("/api/photos", { cache: "no-store" });
@@ -95,7 +123,7 @@ form.addEventListener("submit", async (event) => {
 
   try {
     const config = await getUploadConfig();
-    const payload = config.useBlobStorage ? await uploadViaBlob(files) : await uploadViaServer(files);
+    const payload = config.useSupabaseStorage ? await uploadViaSupabase(files) : await uploadViaServer(files);
 
     form.reset();
     statusEl.textContent = `Uploaded ${payload.uploaded} photo(s). Slideshow now has ${payload.photos.length}.`;

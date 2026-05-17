@@ -4,18 +4,21 @@ const os = require("os");
 const path = require("path");
 const multer = require("multer");
 const QRCode = require("qrcode");
-const { del, list, put } = require("@vercel/blob");
-const { handleUpload } = require("@vercel/blob/client");
+const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 const port = process.env.PORT || 3000;
-const useBlobStorage = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseClientKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabaseBucket = process.env.SUPABASE_BUCKET || "gradpic-media";
+const useSupabaseStorage = Boolean(supabaseUrl && supabaseServiceRoleKey && supabaseClientKey);
 const dataDir = process.env.VERCEL ? path.join("/tmp", "gradpic") : path.join(__dirname, "data");
 const uploadDir = path.join(dataDir, "uploads");
-const blobPrefix = "photos/";
+const storagePrefix = "photos";
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"]);
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".webm", ".m4v", ".avi"]);
-const ALLOWED_BLOB_TYPES = [
+const ALLOWED_UPLOAD_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -30,12 +33,20 @@ const ALLOWED_BLOB_TYPES = [
   "video/msvideo",
   "video/x-msvideo"
 ];
+const supabase = useSupabaseStorage
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+  : null;
 
-if (!useBlobStorage) {
+if (!useSupabaseStorage) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = useBlobStorage
+const storage = useSupabaseStorage
   ? multer.memoryStorage()
   : multer.diskStorage({
       destination: (_req, _file, cb) => cb(null, uploadDir),
@@ -54,20 +65,21 @@ const upload = multer({
 });
 
 app.use(express.json());
-if (!useBlobStorage) {
+if (!useSupabaseStorage) {
   app.use("/uploads", express.static(uploadDir));
 }
 app.use(express.static(path.join(__dirname, "public")));
 
 function buildPhotoName(originalName) {
   const stamp = Date.now();
+  const nonce = Math.random().toString(36).slice(2, 8);
   const safeBase = path
     .basename(originalName, path.extname(originalName))
     .replace(/[^a-zA-Z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60) || "photo";
 
-  return `${stamp}-${safeBase}${path.extname(originalName).toLowerCase()}`;
+  return `${stamp}-${nonce}-${safeBase}${path.extname(originalName).toLowerCase()}`;
 }
 
 function mediaTypeFor(name, mimeType) {
@@ -107,23 +119,36 @@ function mapLocalPhoto(entry) {
 }
 
 function mapBlobPhoto(blob) {
+  const objectPath = `${storagePrefix}/${blob.name}`;
+  const { data } = supabase.storage.from(supabaseBucket).getPublicUrl(objectPath);
+
   return {
-    id: blob.pathname,
-    name: path.basename(blob.pathname),
-    url: blob.url,
-    addedAt: new Date(blob.uploadedAt).getTime(),
-    mediaType: mediaTypeFor(blob.pathname, blob.contentType)
+    id: objectPath,
+    name: blob.name,
+    url: data.publicUrl,
+    addedAt: new Date(blob.created_at || blob.updated_at || Date.now()).getTime(),
+    mediaType: mediaTypeFor(blob.name, blob.metadata?.mimetype)
   };
 }
 
 async function listPhotos() {
-  if (useBlobStorage) {
-    const response = await list({
-      prefix: blobPrefix,
-      limit: 1000
+  if (useSupabaseStorage) {
+    const { data, error } = await supabase.storage.from(supabaseBucket).list(storagePrefix, {
+      limit: 1000,
+      sortBy: {
+        column: "name",
+        order: "asc"
+      }
     });
 
-    return response.blobs.map(mapBlobPhoto).sort((a, b) => a.addedAt - b.addedAt);
+    if (error) {
+      throw error;
+    }
+
+    return (data || [])
+      .filter((entry) => entry.id && entry.name)
+      .map(mapBlobPhoto)
+      .sort((a, b) => a.addedAt - b.addedAt);
   }
 
   return fs
@@ -144,10 +169,6 @@ function resolveUploadPath(name) {
 
 function normalizePhotoIds(input) {
   return Array.isArray(input) ? input.filter((value) => typeof value === "string" && value) : [];
-}
-
-function isValidMimeType(value) {
-  return typeof value === "string" && /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(value);
 }
 
 function errorMessage(error, fallback) {
@@ -178,7 +199,12 @@ app.get("/api/photos", async (_req, res) => {
 });
 
 app.get("/api/upload-config", (_req, res) => {
-  res.json({ useBlobStorage });
+  res.json({
+    useSupabaseStorage,
+    supabaseUrl: useSupabaseStorage ? supabaseUrl : null,
+    supabaseClientKey: useSupabaseStorage ? supabaseClientKey : null,
+    supabaseBucket: useSupabaseStorage ? supabaseBucket : null
+  });
 });
 
 app.get("/api/upload-qr", async (req, res) => {
@@ -201,25 +227,40 @@ app.get("/api/upload-qr", async (req, res) => {
   }
 });
 
-app.post("/api/blob/upload", async (req, res) => {
-  if (!useBlobStorage) {
-    return res.status(400).json({ error: "Blob uploads are not configured for this environment." });
+app.post("/api/supabase/upload-url", async (req, res) => {
+  if (!useSupabaseStorage) {
+    return res.status(400).json({ error: "Supabase uploads are not configured for this environment." });
   }
 
   try {
-    const jsonResponse = await handleUpload({
-      body: req.body,
-      request: req,
-      onBeforeGenerateToken: async (_pathname) => ({
-        allowedContentTypes: ALLOWED_BLOB_TYPES,
-        addRandomSuffix: false
-      }),
-      onUploadCompleted: async () => {}
-    });
+    const objectPath = String(req.body?.path || "");
+    const contentType = String(req.body?.contentType || "");
 
-    return res.status(200).json(jsonResponse);
+    if (!objectPath.startsWith(`${storagePrefix}/`) || objectPath.includes("..")) {
+      return res.status(400).json({ error: "Invalid upload path." });
+    }
+
+    if (!ALLOWED_UPLOAD_TYPES.includes(contentType)) {
+      return res.status(400).json({ error: "Unsupported file type." });
+    }
+
+    const { data, error } = await supabase.storage.from(supabaseBucket).createSignedUploadUrl(
+      objectPath,
+      {
+        upsert: false
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    return res.status(200).json({
+      path: objectPath,
+      token: data.token
+    });
   } catch (error) {
-    return res.status(400).json({ error: errorMessage(error, "Could not prepare Blob upload.") });
+    return res.status(400).json({ error: errorMessage(error, "Could not prepare upload.") });
   }
 });
 
@@ -227,20 +268,8 @@ app.post("/api/photos", upload.array("photos", 10), async (req, res) => {
   try {
     const files = req.files || [];
 
-    if (useBlobStorage) {
-      await Promise.all(
-        files.map((file) => {
-          const options = {
-            access: "public"
-          };
-
-          if (isValidMimeType(file.mimetype)) {
-            options.contentType = file.mimetype;
-          }
-
-          return put(`${blobPrefix}${buildPhotoName(file.originalname)}`, file.buffer, options);
-        })
-      );
+    if (useSupabaseStorage) {
+      return res.status(400).json({ error: "Direct server uploads are disabled when Supabase is configured." });
     }
 
     res.status(201).json({
@@ -261,9 +290,13 @@ app.delete("/api/photos", async (req, res) => {
     return res.status(400).json({ error: "Choose at least one photo to delete." });
   }
 
-  if (useBlobStorage) {
+  if (useSupabaseStorage) {
     try {
-      await del(ids);
+      const { error } = await supabase.storage.from(supabaseBucket).remove(ids);
+
+      if (error) {
+        throw error;
+      }
 
       return res.json({
         deleted: ids,

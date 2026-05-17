@@ -23,7 +23,7 @@ If you later want a true Roku channel, that is a separate BrightScript app build
 - `public/display.html`: TV slideshow page
 - `public/manage.html`: bulk photo review and deletion page
 - `public/styles.css`: shared styling
-- `data/uploads/`: local fallback storage when Blob is not configured
+- `data/uploads/`: local fallback storage when Supabase is not configured
 
 ## Setup
 
@@ -33,17 +33,27 @@ If you later want a true Roku channel, that is a separate BrightScript app build
 npm install
 ```
 
-2. Optional: configure Vercel Blob for durable uploads.
+2. Optional: configure Supabase Storage for durable uploads.
 
-Create a public Blob store in Vercel and make sure `BLOB_READ_WRITE_TOKEN` is available to the app.
+Create a public Storage bucket in Supabase and make sure these environment variables are available to the app:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_PUBLISHABLE_KEY` or `SUPABASE_ANON_KEY`
+- `SUPABASE_BUCKET` (optional, defaults to `gradpic-media`)
 
 For local development, add it to a `.env` file or your shell environment:
 
 ```bash
-export BLOB_READ_WRITE_TOKEN=your_token_here
+export SUPABASE_URL=https://your-project.supabase.co
+export SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+export SUPABASE_PUBLISHABLE_KEY=your_publishable_key_here
+export SUPABASE_BUCKET=gradpic-media
 ```
 
-If you do not set `BLOB_READ_WRITE_TOKEN`, the app falls back to local disk storage in `data/uploads/`.
+The bucket should be set to `Public` so the slideshow can serve files directly.
+
+If you do not set the Supabase variables, the app falls back to local disk storage in `data/uploads/`.
 
 3. Start the app:
 
@@ -70,9 +80,10 @@ http://192.168.1.25:3000
 
 ## Notes
 
-- With `BLOB_READ_WRITE_TOKEN` configured, uploads are stored durably in Vercel Blob.
-- Without Blob configured, uploads stay local to the machine running the app.
-- The app accepts up to 10 images per upload request and 25 MB per image.
+- With Supabase configured, uploads are stored durably in Supabase Storage.
+- Without Supabase configured, uploads stay local to the machine running the app.
+- The app accepts up to 10 media files per upload request.
+- Local fallback mode limits each file to 150 MB.
 - The slideshow polls every few seconds for new photos.
 - The moderation page is available at `/manage.html`.
 - `data/uploads/` is ignored by git so local fallback photos stay out of git.
