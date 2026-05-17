@@ -3,6 +3,7 @@ const slide = document.getElementById("slide");
 const image = document.getElementById("slide-image");
 const video = document.getElementById("slide-video");
 const caption = document.getElementById("slide-caption");
+const videoAudioToggle = document.getElementById("video-audio-toggle");
 const settingsSummary = document.getElementById("settings-summary");
 const emptyQrImage = document.getElementById("upload-qr");
 const slideQrImage = document.getElementById("slide-upload-qr");
@@ -15,12 +16,14 @@ const DEFAULT_SETTINGS = {
 };
 const POLL_MS = 8000;
 const SETTINGS_KEY = "gradpic-slideshow-settings";
+const AUDIO_MUTED_KEY = "gradpic-video-muted";
 
 let photos = [];
 let index = 0;
 let lastSignature = "";
 let settings = loadSettings();
 let slideTimer;
+let videoMuted = loadVideoMutedPreference();
 
 function showUploadAddress(uploadUrl) {
   uploadUrlEl.textContent = uploadUrl;
@@ -68,6 +71,42 @@ function loadSettings() {
   }
 }
 
+function loadVideoMutedPreference() {
+  try {
+    return localStorage.getItem(AUDIO_MUTED_KEY) === "true";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function saveVideoMutedPreference() {
+  try {
+    localStorage.setItem(AUDIO_MUTED_KEY, String(videoMuted));
+  } catch (_error) {
+    // Ignore storage failures for display-only preference.
+  }
+}
+
+function renderVideoAudioToggle() {
+  videoAudioToggle.textContent = videoMuted ? "Unmute video" : "Mute video";
+}
+
+async function playVideoForCurrentSetting() {
+  video.muted = videoMuted;
+
+  try {
+    await video.play();
+  } catch (_error) {
+    if (!videoMuted) {
+      videoMuted = true;
+      saveVideoMutedPreference();
+      renderVideoAudioToggle();
+      video.muted = true;
+      await video.play().catch(() => {});
+    }
+  }
+}
+
 function signatureFor(list) {
   return list.map((item) => `${item.name}:${item.addedAt}`).join("|");
 }
@@ -109,6 +148,7 @@ function reloadSettings() {
 function showCurrentPhoto() {
   if (!photos.length) {
     video.pause();
+    videoAudioToggle.classList.add("hidden");
     emptyState.classList.remove("hidden");
     slide.classList.add("hidden");
     return;
@@ -119,17 +159,17 @@ function showCurrentPhoto() {
 
   const photo = photos[index % photos.length];
   if (photo.mediaType === "video") {
+    videoAudioToggle.classList.remove("hidden");
+    renderVideoAudioToggle();
     image.classList.add("hidden");
     video.classList.remove("hidden");
     video.src = photo.url;
     video.currentTime = 0;
-    const playPromise = video.play();
-    if (playPromise && typeof playPromise.catch === "function") {
-      playPromise.catch(() => {});
-    }
+    void playVideoForCurrentSetting();
   } else {
     video.pause();
     video.classList.add("hidden");
+    videoAudioToggle.classList.add("hidden");
     image.classList.remove("hidden");
     image.src = `${photo.url}?t=${photo.addedAt}`;
   }
@@ -153,6 +193,17 @@ video.addEventListener("ended", () => {
 
   index = settings.loop ? (index + 1) % photos.length : Math.min(index + 1, photos.length - 1);
   showCurrentPhoto();
+});
+
+videoAudioToggle.addEventListener("click", async () => {
+  videoMuted = !videoMuted;
+  saveVideoMutedPreference();
+  renderVideoAudioToggle();
+  video.muted = videoMuted;
+
+  if (video.paused) {
+    await playVideoForCurrentSetting();
+  }
 });
 
 async function refreshPhotos() {
@@ -181,6 +232,7 @@ window.addEventListener("storage", (event) => {
 });
 
 renderSettingsSummary();
+renderVideoAudioToggle();
 startSlideTimer();
 loadUploadQr();
 refreshPhotos();
