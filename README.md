@@ -41,6 +41,7 @@ Create a public Storage bucket in Supabase and make sure these environment varia
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_PUBLISHABLE_KEY` or `SUPABASE_ANON_KEY`
 - `SUPABASE_BUCKET` (optional, defaults to `gradpic-media`)
+- `ADMIN_PASSWORD` (optional but recommended for locking `/manage.html`)
 
 For local development, add it to a `.env` file or your shell environment:
 
@@ -49,6 +50,7 @@ export SUPABASE_URL=https://your-project.supabase.co
 export SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 export SUPABASE_PUBLISHABLE_KEY=your_publishable_key_here
 export SUPABASE_BUCKET=gradpic-media
+export ADMIN_PASSWORD=choose-a-strong-password
 ```
 
 The bucket should be set to `Public` so the slideshow can serve files directly.
@@ -86,4 +88,5 @@ http://192.168.1.25:3000
 - Local fallback mode limits each file to 150 MB.
 - The slideshow polls every few seconds for new photos.
 - The moderation page is available at `/manage.html`.
+- Set `ADMIN_PASSWORD` to require login before using `/manage.html` and before deleting media.
 - `data/uploads/` is ignored by git so local fallback photos stay out of git.

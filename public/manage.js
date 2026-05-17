@@ -5,6 +5,7 @@ const selectAllButton = document.getElementById("select-all");
 const clearSelectionButton = document.getElementById("clear-selection");
 const refreshButton = document.getElementById("refresh-photos");
 const deleteButton = document.getElementById("delete-selected");
+const logoutButton = document.getElementById("manage-logout");
 
 let photos = [];
 const selectedIds = new Set();
@@ -162,5 +163,11 @@ clearSelectionButton.addEventListener("click", () => {
 
 refreshButton.addEventListener("click", loadPhotos);
 deleteButton.addEventListener("click", deleteSelected);
+logoutButton.addEventListener("click", async () => {
+  await fetch("/api/admin/logout", {
+    method: "POST"
+  });
+  window.location.href = "/manage-login.html";
+});
 
 loadPhotos();

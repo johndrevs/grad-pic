@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -8,6 +9,7 @@ const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
 const port = process.env.PORT || 3000;
+const adminPassword = process.env.ADMIN_PASSWORD;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseClientKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
@@ -33,6 +35,7 @@ const ALLOWED_UPLOAD_TYPES = [
   "video/msvideo",
   "video/x-msvideo"
 ];
+const ADMIN_COOKIE = "gradpic_admin";
 const supabase = useSupabaseStorage
   ? createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: {
@@ -68,6 +71,15 @@ app.use(express.json());
 if (!useSupabaseStorage) {
   app.use("/uploads", express.static(uploadDir));
 }
+
+app.get("/manage.html", (req, res, next) => {
+  if (!adminPassword || isAdminRequest(req)) {
+    return next();
+  }
+
+  return res.redirect("/manage-login.html");
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 function buildPhotoName(originalName) {
@@ -175,6 +187,65 @@ function errorMessage(error, fallback) {
   return error?.cause?.message || error?.message || fallback;
 }
 
+function createAdminToken() {
+  return crypto.createHmac("sha256", adminPassword).update("gradpic-admin-session").digest("hex");
+}
+
+function parseCookies(req) {
+  const raw = req.headers.cookie || "";
+  const entries = raw.split(";").map((part) => part.trim()).filter(Boolean);
+  const cookies = {};
+
+  for (const entry of entries) {
+    const index = entry.indexOf("=");
+    if (index === -1) {
+      continue;
+    }
+
+    const key = entry.slice(0, index);
+    const value = entry.slice(index + 1);
+    cookies[key] = decodeURIComponent(value);
+  }
+
+  return cookies;
+}
+
+function isAdminRequest(req) {
+  if (!adminPassword) {
+    return true;
+  }
+
+  const cookies = parseCookies(req);
+  const expected = createAdminToken();
+  return cookies[ADMIN_COOKIE] === expected;
+}
+
+function setAdminCookie(res) {
+  const parts = [
+    `${ADMIN_COOKIE}=${encodeURIComponent(createAdminToken())}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=43200"
+  ];
+
+  if (process.env.NODE_ENV === "production") {
+    parts.push("Secure");
+  }
+
+  res.setHeader("Set-Cookie", parts.join("; "));
+}
+
+function clearAdminCookie(res) {
+  const parts = [`${ADMIN_COOKIE}=`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
+
+  if (process.env.NODE_ENV === "production") {
+    parts.push("Secure");
+  }
+
+  res.setHeader("Set-Cookie", parts.join("; "));
+}
+
 function getLanAddresses() {
   const interfaces = os.networkInterfaces();
   const addresses = [];
@@ -205,6 +276,32 @@ app.get("/api/upload-config", (_req, res) => {
     supabaseClientKey: useSupabaseStorage ? supabaseClientKey : null,
     supabaseBucket: useSupabaseStorage ? supabaseBucket : null
   });
+});
+
+app.get("/api/admin/session", (req, res) => {
+  res.json({
+    enabled: Boolean(adminPassword),
+    authenticated: isAdminRequest(req)
+  });
+});
+
+app.post("/api/admin/login", (req, res) => {
+  if (!adminPassword) {
+    return res.status(400).json({ error: "Admin login is not configured." });
+  }
+
+  const password = String(req.body?.password || "");
+  if (password !== adminPassword) {
+    return res.status(401).json({ error: "Incorrect password." });
+  }
+
+  setAdminCookie(res);
+  return res.json({ ok: true });
+});
+
+app.post("/api/admin/logout", (_req, res) => {
+  clearAdminCookie(res);
+  return res.json({ ok: true });
 });
 
 app.get("/api/upload-qr", async (req, res) => {
@@ -282,6 +379,10 @@ app.post("/api/photos", upload.array("photos", 10), async (req, res) => {
 });
 
 app.delete("/api/photos", async (req, res) => {
+  if (!isAdminRequest(req)) {
+    return res.status(401).json({ error: "Admin login required." });
+  }
+
   const ids = normalizePhotoIds(req.body?.ids || req.body?.names);
   const deleted = [];
   const missing = [];

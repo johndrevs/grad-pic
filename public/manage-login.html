@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manage Login</title>
+    <link rel="stylesheet" href="/styles.css?v=20260517b" />
+  </head>
+  <body class="page-shell">
+    <main class="panel">
+      <p class="eyebrow">Graduation Party</p>
+      <h1>Manage access</h1>
+      <p class="lede">
+        Enter the admin password to review and remove slideshow media.
+      </p>
+
+      <form id="manage-login-form" class="stack">
+        <label class="field">
+          <span>Admin password</span>
+          <input id="manage-password" name="manage-password" type="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit">Continue</button>
+      </form>
+
+      <div id="manage-login-status" class="status" aria-live="polite"></div>
+
+      <section class="stack">
+        <a class="text-link" href="/">Back to upload page</a>
+        <a class="text-link" href="/display.html">Back to slideshow</a>
+      </section>
+    </main>
+
+    <script src="/manage-login.js?v=20260517b"></script>
+  </body>
+</html>
