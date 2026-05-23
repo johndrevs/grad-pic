@@ -1,6 +1,8 @@
 const form = document.getElementById("upload-form");
 const input = document.getElementById("photos");
 const statusEl = document.getElementById("status");
+const selectedFilesEl = document.getElementById("selected-files");
+const uploadButton = document.getElementById("upload-button");
 let supabaseModulePromise;
 
 function buildPhotoName(originalName) {
@@ -110,6 +112,24 @@ async function getUploadConfig() {
   return payload;
 }
 
+function updateSelectedFilesState() {
+  const files = [...(input.files || [])];
+
+  if (!files.length) {
+    selectedFilesEl.textContent = "No files selected yet.";
+    uploadButton.classList.add("hidden");
+    return;
+  }
+
+  if (files.length === 1) {
+    selectedFilesEl.textContent = `Ready to upload: ${files[0].name}`;
+  } else {
+    selectedFilesEl.textContent = `Ready to upload ${files.length} files.`;
+  }
+
+  uploadButton.classList.remove("hidden");
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -126,8 +146,12 @@ form.addEventListener("submit", async (event) => {
     const payload = config.useSupabaseStorage ? await uploadViaSupabase(files) : await uploadViaServer(files);
 
     form.reset();
+    updateSelectedFilesState();
     statusEl.textContent = `Uploaded ${payload.uploaded} photo(s). Slideshow now has ${payload.photos.length}.`;
   } catch (error) {
     statusEl.textContent = error.message;
   }
 });
+
+input.addEventListener("change", updateSelectedFilesState);
+updateSelectedFilesState();

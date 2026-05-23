@@ -75,8 +75,20 @@ h1 {
   background: rgba(255, 255, 255, 0.75);
 }
 
+.upload-drop-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
 input[type="file"] {
   width: 100%;
+}
+
+.selected-files {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--border);
 }
 
 button {

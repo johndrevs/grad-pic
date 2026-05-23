@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Graduation Party Album</title>
-    <link rel="stylesheet" href="/styles.css?v=20260503f" />
+    <link rel="stylesheet" href="/styles.css?v=20260523a" />
   </head>
   <body class="page-shell">
     <main class="panel">
@@ -16,11 +16,12 @@
 
       <form id="upload-form" class="stack">
         <label class="upload-drop" for="photos">
-          <span>Select photos or videos from your phone</span>
+          <span class="upload-drop-title">1. Choose photos or videos</span>
           <span class="muted">Up to 10 at a time, common image formats plus MP4/MOV/WebM video.</span>
         </label>
         <input id="photos" name="photos" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,video/x-m4v,video/avi,video/x-msvideo" multiple required />
-        <button type="submit">Upload Media</button>
+        <div id="selected-files" class="selected-files muted">No files selected yet.</div>
+        <button id="upload-button" type="submit" class="hidden">2. Upload to slideshow</button>
       </form>
 
       <section class="stack">
@@ -37,6 +38,6 @@
       </section>
     </main>
 
-    <script src="/upload.js?v=20260503f"></script>
+    <script src="/upload.js?v=20260523a"></script>
   </body>
 </html>
