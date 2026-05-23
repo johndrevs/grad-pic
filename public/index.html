@@ -18,8 +18,9 @@
         <label class="upload-drop" for="photos">
           <span class="upload-drop-title">1. Choose photos or videos</span>
           <span class="muted">Up to 10 at a time, common image formats plus MP4/MOV/WebM video.</span>
+          <span class="upload-picker-button">Browse phone</span>
         </label>
-        <input id="photos" name="photos" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,video/x-m4v,video/avi,video/x-msvideo" multiple required />
+        <input id="photos" class="sr-only-file-input" name="photos" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,video/x-m4v,video/avi,video/x-msvideo" multiple required />
         <div id="selected-files" class="selected-files muted">No files selected yet.</div>
         <button id="upload-button" type="submit" class="hidden">2. Upload to slideshow</button>
       </form>
