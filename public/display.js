@@ -214,9 +214,22 @@ async function refreshPhotos() {
     const nextSignature = signatureFor(nextPhotos);
 
     if (nextSignature !== lastSignature) {
+      const currentItem = photos.length ? photos[index % photos.length] : null;
+      const nextIndex = currentItem
+        ? nextPhotos.findIndex((photo) => photo.id === currentItem.id)
+        : -1;
+
       photos = nextPhotos;
       lastSignature = nextSignature;
-      index = 0;
+
+      if (!photos.length) {
+        index = 0;
+      } else if (nextIndex >= 0) {
+        index = nextIndex;
+      } else {
+        index = Math.min(index, photos.length - 1);
+      }
+
       showCurrentPhoto();
     }
   } catch (_error) {
