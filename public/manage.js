@@ -2,6 +2,7 @@ const gridEl = document.getElementById("photo-grid");
 const statusEl = document.getElementById("manage-status");
 const summaryEl = document.getElementById("selection-summary");
 const selectAllButton = document.getElementById("select-all");
+const selectDuplicatesButton = document.getElementById("select-duplicates");
 const clearSelectionButton = document.getElementById("clear-selection");
 const refreshButton = document.getElementById("refresh-photos");
 const deleteButton = document.getElementById("delete-selected");
@@ -10,10 +11,40 @@ const logoutButton = document.getElementById("manage-logout");
 let photos = [];
 const selectedIds = new Set();
 
+function duplicateIds() {
+  const grouped = new Map();
+
+  for (const photo of photos) {
+    if (!photo.fingerprint) {
+      continue;
+    }
+
+    const group = grouped.get(photo.fingerprint) || [];
+    group.push(photo);
+    grouped.set(photo.fingerprint, group);
+  }
+
+  const ids = [];
+  for (const group of grouped.values()) {
+    if (group.length < 2) {
+      continue;
+    }
+
+    group.sort((a, b) => a.addedAt - b.addedAt);
+    for (const duplicate of group.slice(1)) {
+      ids.push(duplicate.id);
+    }
+  }
+
+  return ids;
+}
+
 function updateSelectionSummary() {
   const total = photos.length;
   const selected = selectedIds.size;
-  summaryEl.textContent = `${selected} selected${total ? ` of ${total}` : ""}`;
+  const duplicates = duplicateIds().length;
+  const duplicateLabel = duplicates ? ` - ${duplicates} duplicate${duplicates === 1 ? "" : "s"} found` : "";
+  summaryEl.textContent = `${selected} selected${total ? ` of ${total}` : ""}${duplicateLabel}`;
   deleteButton.disabled = selected === 0;
 }
 
@@ -27,6 +58,7 @@ function formatTimestamp(value) {
 
 function renderPhotos() {
   gridEl.innerHTML = "";
+  const duplicateIdSet = new Set(duplicateIds());
 
   if (!photos.length) {
     gridEl.innerHTML = '<p class="muted">No uploaded photos to manage yet.</p>';
@@ -37,8 +69,12 @@ function renderPhotos() {
   for (const photo of photos) {
     const card = document.createElement("label");
     card.className = "manage-card";
+    const isDuplicate = duplicateIdSet.has(photo.id);
     if (selectedIds.has(photo.id)) {
       card.classList.add("is-selected");
+    }
+    if (isDuplicate) {
+      card.classList.add("is-duplicate");
     }
 
     const checkbox = document.createElement("input");
@@ -77,6 +113,7 @@ function renderPhotos() {
     meta.className = "manage-meta";
     meta.innerHTML = `
       <strong>${photo.name}</strong>
+      ${isDuplicate ? '<span class="duplicate-badge">Duplicate</span>' : ""}
       <span>${photo.mediaType === "video" ? "Video" : "Photo"}</span>
       <span>${formatTimestamp(photo.addedAt)}</span>
     `;
@@ -151,6 +188,15 @@ async function deleteSelected() {
 selectAllButton.addEventListener("click", () => {
   for (const photo of photos) {
     selectedIds.add(photo.id);
+  }
+
+  renderPhotos();
+});
+
+selectDuplicatesButton.addEventListener("click", () => {
+  selectedIds.clear();
+  for (const id of duplicateIds()) {
+    selectedIds.add(id);
   }
 
   renderPhotos();

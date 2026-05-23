@@ -83,6 +83,10 @@ app.get("/manage.html", (req, res, next) => {
 app.use(express.static(path.join(__dirname, "public")));
 
 function buildPhotoName(originalName) {
+  return buildPhotoNameWithFingerprint(originalName);
+}
+
+function buildPhotoNameWithFingerprint(originalName, fingerprint = "") {
   const stamp = Date.now();
   const nonce = Math.random().toString(36).slice(2, 8);
   const safeBase = path
@@ -91,7 +95,13 @@ function buildPhotoName(originalName) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 60) || "photo";
 
-  return `${stamp}-${nonce}-${safeBase}${path.extname(originalName).toLowerCase()}`;
+  const fingerprintPrefix = /^[a-f0-9]{64}$/i.test(fingerprint) ? `${fingerprint.toLowerCase()}-` : "";
+  return `${fingerprintPrefix}${stamp}-${nonce}-${safeBase}${path.extname(originalName).toLowerCase()}`;
+}
+
+function fingerprintForName(name) {
+  const match = path.basename(name).match(/^([a-f0-9]{64})-/i);
+  return match ? match[1].toLowerCase() : null;
 }
 
 function mediaTypeFor(name, mimeType) {
@@ -126,7 +136,8 @@ function mapLocalPhoto(entry) {
     name: entry.name,
     url: `/uploads/${encodeURIComponent(entry.name)}`,
     addedAt: stats.birthtimeMs || stats.mtimeMs,
-    mediaType: mediaTypeFor(entry.name)
+    mediaType: mediaTypeFor(entry.name),
+    fingerprint: fingerprintForName(entry.name)
   };
 }
 
@@ -139,7 +150,8 @@ function mapBlobPhoto(blob) {
     name: blob.name,
     url: data.publicUrl,
     addedAt: new Date(blob.created_at || blob.updated_at || Date.now()).getTime(),
-    mediaType: mediaTypeFor(blob.name, blob.metadata?.mimetype)
+    mediaType: mediaTypeFor(blob.name, blob.metadata?.mimetype),
+    fingerprint: fingerprintForName(blob.name)
   };
 }
 

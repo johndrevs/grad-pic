@@ -227,6 +227,10 @@ button:disabled {
   box-shadow: 0 16px 38px rgba(217, 93, 57, 0.16);
 }
 
+.manage-card.is-duplicate {
+  border-color: rgba(0, 109, 119, 0.45);
+}
+
 .manage-checkbox {
   position: absolute;
   top: 12px;
@@ -254,6 +258,16 @@ button:disabled {
 .manage-meta strong {
   color: var(--ink);
   font-size: 0.92rem;
+}
+
+.duplicate-badge {
+  justify-self: start;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(0, 109, 119, 0.12);
 }
 
 .display-body {
